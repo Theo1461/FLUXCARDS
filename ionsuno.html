@@ -1,0 +1,1086 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Elements UNO: Neutralize Match Modes (Cumulative)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+<style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap');
+    
+    /* Dark Mode Global Styles */
+    :root {
+        --dark-bg: #1f2937;    /* Slate/Dark Gray background */
+        --mid-dark-bg: #374151; /* Slightly lighter surface color for surfaces like sidebar */
+        --light-text: #f3f4f6;  /* Near-white text */
+        --soft-accent: #6ee7b7; /* Soft Teal/Cyan for accents (Emerald-300) */
+        --vibrant-accent: #34d399; /* Vibrant Teal/Cyan for primary headers (Emerald-500) */
+        --border-color: #4b5563; /* Muted border/divider color */
+        --error-bg: #450a0a; /* Dark red for errors */
+    }
+
+    body { 
+        font-family: 'Inter', sans-serif;
+        background-color: var(--dark-bg);
+        color: var(--light-text);
+    }
+
+    /* Accent Color */
+    .charge-text { 
+        color: var(--soft-accent);
+        font-weight: 600;
+    } 
+    
+    /* Card Styling - Soft Dark Mode Look */
+    .card {
+        transition: all 0.2s ease-in-out;
+        cursor: pointer;
+        user-select: none;
+        background-color: var(--mid-dark-bg);
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        box-shadow: 0 8px 15px rgba(0, 0, 0, 0.3);
+        font-size: 0.8rem;
+        width: 80px; 
+        height: 110px;
+        color: var(--light-text);
+        padding: 8px;
+    }
+    
+    .card:hover:not(.is-discard) {
+        transform: translateY(-4px) scale(1.03); 
+        box-shadow: 0 15px 25px rgba(0, 0, 0, 0.4);
+    }
+    
+    .card.selected {
+        border: 3px solid var(--soft-accent);
+        transform: translateY(-4px) scale(1.03);
+        box-shadow: 0 0 20px rgba(110, 231, 183, 0.7);
+        margin: 0px;
+    }
+    
+    .card:active:not(.is-discard):not(.selected) {
+        transform: scale(0.98);
+        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+    }
+
+    .card-wild {
+        background: linear-gradient(135deg, #4b5563 25%, #6b7280 75%);
+        color: white;
+    }
+
+    /* Responsive Sidebar */
+    #hand-sidebar {
+        background-color: var(--mid-dark-bg);
+        border-left: 1px solid var(--border-color); 
+        height: 100vh; 
+        overflow-y: auto;
+        position: fixed;
+        right: 0;
+        top: 0;
+        width: 100%;
+        z-index: 10;
+        transform: translateX(100%);
+        transition: transform 0.4s ease-in-out;
+    }
+
+    @media (min-width: 768px) {
+        #hand-sidebar {
+            position: static;
+            width: 280px;
+            transform: translateX(0);
+        }
+        #main-content {
+            max-width: calc(100% - 280px);
+        }
+    }
+
+    #hand-sidebar.open {
+        transform: translateX(0);
+    }
+    
+    #sidebar-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.7);
+        z-index: 9;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.4s;
+    }
+    
+    #sidebar-overlay.active {
+        opacity: 1;
+        pointer-events: auto;
+    }
+
+    /* NEW GAME SPLASH ANIMATION */
+    @keyframes splash-fade-in-out {
+        0% { opacity: 0; transform: scale(0.5); }
+        10% { opacity: 1; transform: scale(1.0); }
+        90% { opacity: 1; transform: scale(1.1); }
+        100% { opacity: 0; transform: scale(1.5); }
+    }
+
+    .animate-splash {
+        animation: splash-fade-in-out 1.2s ease-in-out forwards;
+    }
+
+    /* Card Hand Layout (Mobile Default: Single Column) */
+    #player-hand {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 8px; /* Added gap for cleaner two-column look */
+    }
+    
+    /* Card Hand Layout (Desktop/Sidebar: Two Columns) */
+    @media (min-width: 768px) {
+        #player-hand {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 10px;
+            justify-items: center;
+        }
+    }
+
+    /* Card width adjustment for two-column sidebar */
+    @media (min-width: 768px) {
+        #player-hand > .card {
+            width: 100%; /* Fill grid cell */
+            max-width: 120px; /* Max width constraint for larger screens */
+            height: auto;
+            margin: 0;
+        }
+    }
+
+</style>
+</head>
+<body class="flex h-screen overflow-hidden">
+    
+    <div id="new-game-splash" class="fixed inset-0 bg-gray-900 bg-opacity-95 z-50 flex items-center justify-center hidden">
+        <div id="splash-text" class="text-6xl md:text-9xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-cyan-400 opacity-0 transform scale-50">
+            NEW GAME!
+        </div>
+    </div>
+
+    <div id="sidebar-overlay" class="hidden md:hidden opacity-0" onclick="toggleSidebar(false)"></div>
+
+    <div id="main-content" class="flex-grow w-full max-w-4xl mx-auto p-4 md:p-6 overflow-y-auto">
+        <div id="app-container" class="w-full bg-gray-800 p-4 md:p-6 rounded-2xl shadow-2xl border border-gray-700" style="background-color: var(--mid-dark-bg);">
+            
+            <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 space-y-3 md:space-y-0">
+                <h1 class="text-3xl md:text-4xl font-extrabold" style="color: var(--vibrant-accent);">
+                    Elements UNO
+                </h1>
+                <div class="flex items-center space-x-3 w-full md:w-auto">
+                    <button
+                        onclick="resetGame()"
+                        class="px-4 py-2 bg-indigo-500 text-white font-bold rounded-lg shadow-md transition duration-200 transform hover:bg-indigo-600 hover:scale-105 active:scale-95"
+                    >
+                        New Game
+                    </button>
+                    <select id="mode-select" onchange="resetGame()" class="p-2 border rounded-lg text-sm md:text-base font-medium transition duration-200 hover:border-emerald-300" style="background-color: var(--dark-bg); border-color: var(--border-color); color: var(--light-text);">
+                        <option value="easy">Basic Mode (Basics)</option>
+                        <option value="medium">Advanced Mode (+Polyatomics)</option>
+                        <option value="hard" selected> Extended Mode (+More Ions)</option>
+                        <option value="extreme">Extreme Mode (+Transition Metals)</option>
+                    </select>
+                    <button id="toggle-hand-btn" onclick="toggleSidebar(true)" class="md:hidden p-2 text-white rounded-full shadow-lg flex-shrink-0 transition duration-200 hover:scale-105 active:scale-95" style="background-color: var(--soft-accent);">
+                        Hand (<span id="mobile-hand-count">0</span>)
+                    </button>
+                </div>
+            </div>
+            
+            <p class="text-sm mb-6" style="color: var(--border-color);">Neutralize the target charge using 1, 2, or 3 cards.</p>
+            
+            <div id="game-status" class="flex flex-col justify-between items-center mb-6 p-6 rounded-2xl shadow-inner border" style="background-color: var(--dark-bg); border-color: var(--border-color);">
+                </div>
+
+            <div id="error-message" class="hidden p-3 rounded-lg font-medium mb-4 animate-pulse" style="background-color: var(--error-bg); color: var(--soft-accent);"></div>
+            
+            <div id="play-area" class="flex justify-center items-center space-x-6 md:space-x-10 mb-8 p-4 rounded-xl border" style="background-color: var(--dark-bg); border-color: var(--border-color);">
+                </div>
+
+            <div id="action-panel" class="p-5 rounded-2xl shadow-lg border" style="background-color: var(--dark-bg); border-color: var(--border-color);">
+                </div>
+        </div>
+    </div>
+    
+    <div id="hand-sidebar" class="shadow-2xl p-4 flex-shrink-0" style="background-color: var(--mid-dark-bg);">
+        <div class="flex justify-between items-center mb-4">
+            <h3 id="hand-title" class="text-xl font-extrabold" style="color: var(--soft-accent);">Cards (0)</h3>
+            <button id="close-hand-btn" onclick="toggleSidebar(false)" class="md:hidden text-2xl font-bold transition duration-200 hover:scale-125" style="color: var(--soft-accent);">&times;</button>
+        </div>
+        
+        <div id="player-hand">
+            <div class="text-center p-4 text-xs" style="color: var(--border-color);">Your hand is empty.</div>
+        </div>
+    </div>
+    
+    <script>
+        // --- Game State Globals ---
+        let gameData = null; 
+        let selectedCardIds = [];
+        let setNewChargeTarget = null; // Used only for Wild Card action
+        let currentErrorMessage = '';
+        
+        // --- Card Definitions by Difficulty Mode (Unchanged) ---
+        
+        const BASIC_CATIONS = [
+            { symbol: 'Li⁺', name: 'Lithium', charge: 1, color: 'bg-red-500', isWild: false },
+            { symbol: 'Na⁺', name: 'Sodium', charge: 1, color: 'bg-red-500', isWild: false },
+            { symbol: 'Mg²⁺', name: 'Magnesium', charge: 2, color: 'bg-green-500', isWild: false },
+            { symbol: 'Ca²⁺', name: 'Calcium', charge: 2, color: 'bg-green-500', isWild: false },
+            { symbol: 'Al³⁺', name: 'Aluminum', charge: 3, color: 'bg-purple-500', isWild: false },
+        ];
+        
+        const BASIC_ANIONS = [
+            { symbol: 'Cl⁻', name: 'Chloride', charge: -1, color: 'bg-blue-500', isWild: false },
+            { symbol: 'F⁻', name: 'Fluoride', charge: -1, color: 'bg-blue-500', isWild: false },
+            { symbol: 'O²⁻', name: 'Oxide', charge: -2, color: 'bg-yellow-500', isWild: false },
+            { symbol: 'S²⁻', name: 'Sulfide', charge: -2, color: 'bg-yellow-500', isWild: false },
+            { symbol: 'N³⁻', name: 'Nitride', charge: -3, color: 'bg-orange-500', isWild: false },
+        ];
+
+        const POLYATOMIC_IONS = [
+            { symbol: 'NH₄⁺', name: 'Ammonium', charge: 1, color: 'bg-red-500', isWild: false },
+            { symbol: 'NO₃⁻', name: 'Nitrate', charge: -1, color: 'bg-blue-500', isWild: false },
+            { symbol: 'OH⁻', name: 'Hydroxide', charge: -1, color: 'bg-blue-500', isWild: false },
+            { symbol: 'SO₄²⁻', name: 'Sulfate', charge: -2, color: 'bg-yellow-500', isWild: false },
+            { symbol: 'CO₃²⁻', name: 'Carbonate', charge: -2, color: 'bg-yellow-500', isWild: false },
+            { symbol: 'PO₄³⁻', name: 'Phosphate', charge: -3, color: 'bg-orange-500', isWild: false },
+        ];
+
+        const MORE_ELEMENTS = [
+            { symbol: 'K⁺', name: 'Potassium', charge: 1, color: 'bg-red-500', isWild: false },
+            { symbol: 'Be²⁺', name: 'Beryllium', charge: 2, color: 'bg-red-500', isWild: false },
+            { symbol: 'Ag⁺', name: 'Silver (I)', charge: 1, color: 'bg-red-500', isWild: false },
+            { symbol: 'Br⁻', name: 'Bromide', charge: -1, color: 'bg-blue-500', isWild: false },
+            { symbol: 'I⁻', name: 'Iodide', charge: -1, color: 'bg-blue-500', isWild: false },
+            { symbol: 'C⁴⁻', name: 'Carbide', charge: -4, color: 'bg-indigo-500', isWild: false },
+        ];
+
+        const TRANSITION_METALS = [
+            { symbol: 'Fe²⁺', name: 'Iron (II)', charge: 2, color: 'bg-green-500', isWild: false },
+            { symbol: 'Cu²⁺', name: 'Copper (II)', charge: 2, color: 'bg-green-500', isWild: false },
+            { symbol: 'Fe³⁺', name: 'Iron (III)', charge: 3, color: 'bg-purple-500', isWild: false },
+            { symbol: 'Cr³⁺', name: 'Chromium (III)', charge: 3, color: 'bg-purple-500', isWild: false },
+            // Higher charges for extreme difficulty
+            { symbol: 'V⁴⁺', name: 'Vanadium (IV)', charge: 4, color: 'bg-teal-500', isWild: false },
+            { symbol: 'Mn⁴⁺', name: 'Manganese (IV)', charge: 4, color: 'bg-teal-500', isWild: false },
+            { symbol: 'V⁵⁺', name: 'Vanadium (V)', charge: 5, color: 'bg-cyan-500', isWild: false },
+        ];
+
+        const NEUTRALS = [
+            { symbol: 'He', name: 'Helium', charge: 0, color: 'bg-gray-400', isWild: false },
+            { symbol: 'Ne', name: 'Neon', charge: 0, color: 'bg-gray-400', isWild: false },
+        ];
+
+        const WILD_CARD = { symbol: '?', name: 'Wild', charge: 0, color: 'bg-black', isWild: true };
+
+        /**
+         * Selects the card set based on the chosen mode, accumulating previous modes.
+         * @param {string} mode 
+         * @returns {Array} List of unique card definitions
+         */
+        const getCardsForMode = (mode) => {
+            let cardDefinitions = [...BASIC_CATIONS, ...BASIC_ANIONS, ...NEUTRALS];
+            let wildCardCount = 300; // Increased Wild Card count for easier play
+            let deckMultiplier = 100;
+
+            // Medium and higher modes add Polyatomic Ions
+            if (mode === 'medium' || mode === 'hard' || mode === 'extreme') {
+                cardDefinitions.push(...POLYATOMIC_IONS);
+                deckMultiplier = 100; // Reduce multiplier as card pool grows
+            }
+            
+            // Hard and higher modes add More Elements
+            if (mode === 'hard' || mode === 'extreme') {
+                cardDefinitions.push(...MORE_ELEMENTS);
+                deckMultiplier = 100;
+            }
+            
+            // Extreme mode adds Transition Metals
+            if (mode === 'extreme') {
+                cardDefinitions.push(...TRANSITION_METALS);
+                deckMultiplier = 100; // Lowest multiplier for max variety and challenge
+                wildCardCount = 350; // Slight increase for extreme too
+            }
+
+            // Create the full deck by duplicating definitions
+            let deck = [];
+            for (let i = 0; i < deckMultiplier; i++) {
+                deck = deck.concat(JSON.parse(JSON.stringify(cardDefinitions)));
+            }
+            for (let i = 0; i < wildCardCount; i++) {
+                deck.push(JSON.parse(JSON.stringify(WILD_CARD)));
+            }
+
+            // Add unique IDs and shuffle
+            return deck.map((card, index) => ({ 
+                ...card, 
+                id: `card-${index}-${Math.random().toString(36).substring(2, 9)}` 
+            })).sort(() => Math.random() - 0.5);
+        };
+
+        const initialGameState = (mode) => {
+            const fullDeck = getCardsForMode(mode);
+            return {
+                deck: fullDeck,
+                hand: [],
+                discardPile: [],
+                targetCharge: 0,
+                message: "Ready to start a new game!",
+                isGameOver: false,
+                currentMode: mode
+            };
+        };
+        
+        // --- Utility Functions ---
+
+        /**
+         * Converts a charge number to a clean HTML symbol display.
+         * @param {number} charge 
+         * @returns {string} 
+         */
+        const getChargeSymbol = (charge) => {
+            if (charge === 0) return '0';
+            const sign = charge > 0 ? '⁺' : '⁻';
+            const magnitude = Math.abs(charge);
+            if (magnitude === 1) return sign;
+            return `${magnitude}${sign}`;
+        };
+
+        /**
+         * Displays temporary error messages.
+         * @param {string} message 
+         */
+        const setUIError = (message) => {
+            currentErrorMessage = message;
+            const errorElement = document.getElementById('error-message');
+            errorElement.textContent = message;
+            errorElement.classList.remove('hidden');
+            // ADDED: Simple shake animation on error
+            errorElement.style.animation = 'shake 0.5s';
+            
+            // Define shake animation for a nicer effect
+            const styleSheet = document.styleSheets[0];
+            const rule = `@keyframes shake {
+                0%, 100% { transform: translateX(0); }
+                20%, 60% { transform: translateX(-5px); }
+                40%, 80% { transform: translateX(5px); }
+            }`;
+            // Ensure rule is only inserted once, or handle existing rule
+            try {
+                styleSheet.insertRule(rule, styleSheet.cssRules.length);
+            } catch (e) {}
+
+
+            setTimeout(() => {
+                errorElement.classList.add('hidden');
+                errorElement.style.animation = '';
+                currentErrorMessage = '';
+                renderUI();
+            }, 5000);
+        };
+
+        /**
+         * Toggles the mobile sidebar view.
+         */
+        window.toggleSidebar = (open) => {
+            const sidebar = document.getElementById('hand-sidebar');
+            const overlay = document.getElementById('sidebar-overlay');
+            
+            if (open) {
+                sidebar.classList.add('open');
+                overlay.classList.remove('hidden');
+                setTimeout(() => overlay.classList.add('active'), 10);
+            } else {
+                sidebar.classList.remove('open');
+                overlay.classList.remove('active');
+                setTimeout(() => overlay.classList.add('hidden'), 400);
+            }
+        };
+
+        /**
+         * Initializes the local game state on load or when resetting.
+         */
+        const initializeLocalGame = (mode) => {
+            const selectedMode = mode || document.getElementById('mode-select').value;
+            const newState = initialGameState(selectedMode);
+            
+            // Deal initial hand of 7 cards (Down from 10 for easier play)
+            newState.hand = newState.deck.splice(0, 7); 
+            
+            gameData = newState;
+            
+            document.getElementById('app-container').classList.remove('hidden');
+            selectedCardIds = [];
+            setNewChargeTarget = null;
+            renderUI();
+        };
+        
+        /**
+         * Helper function to consolidate the state update after animation/logic.
+         */
+        const finishPlayCards = (newHand, tempDiscardPile, newDeck, nextCharge, message, targetCard) => {
+            
+            let finalTargetCharge = nextCharge;
+            
+            let isGameOver = newHand.length === 0;
+            
+            // The logic here needs to be re-run since the card played by the user is the one that sets the initial charge
+            if (newHand.length > 0 && nextCharge === 0) {
+                 // Check if next target card was drawn but was a neutral (charge 0).
+                 if (targetCard && targetCard.charge === 0) {
+                    finalTargetCharge = 0; // The charge of the new card
+                 }
+                 // If deck was empty and nextCharge is 0, keep it 0.
+            }
+
+            const newState = {
+                ...gameData,
+                hand: newHand,
+                deck: newDeck,
+                discardPile: tempDiscardPile, 
+                targetCharge: finalTargetCharge,
+                message: isGameOver ? "You Won! Click 'New Game' to play again." : message,
+                isGameOver: isGameOver,
+            };
+            
+            gameData = newState;
+            selectedCardIds = [];
+            renderUI();
+        }
+
+        /**
+         * Creates clones of selected cards and animates them to the discard slot.
+         */
+        const animateCardsToDiscard = (cardElements, finalState) => {
+            
+            const animationDuration = 500; // 0.5s
+
+            // Get the target position (Discard Card area)
+            const discardSlotEl = document.getElementById('discard-target-slot');
+            
+            // Fallback: If the target slot is missing, skip animation and update state immediately.
+            if (!discardSlotEl) {
+                console.error("Discard slot not found. Skipping animation.");
+                finishPlayCards(finalState.newHand, finalState.tempDiscardPile, finalState.newDeck, finalState.nextCharge, finalState.message, finalState.targetCard);
+                return;
+            }
+            const targetRect = discardSlotEl.getBoundingClientRect();
+            
+            const clones = [];
+
+            cardElements.forEach(originalEl => {
+                const originalRect = originalEl.getBoundingClientRect();
+                
+                // 1. Create and style clone
+                const clone = originalEl.cloneNode(true);
+                // Remove the 'selected' class and click handler from clone
+                clone.classList.remove('selected');
+                clone.removeAttribute('onclick');
+                clone.style.position = 'fixed';
+                clone.style.zIndex = '100';
+                clone.style.transition = `all ${animationDuration}ms ease-in-out`;
+                clone.style.left = `${originalRect.left}px`;
+                clone.style.top = `${originalRect.top}px`;
+                clone.style.width = `${originalRect.width}px`;
+                clone.style.height = `${originalRect.height}px`;
+                
+                // 2. Hide original card immediately (will be fully removed by renderUI later)
+                originalEl.style.opacity = '0';
+                
+                document.body.appendChild(clone);
+                clones.push(clone);
+
+                // 3. Trigger transition with a slight delay after clone is in DOM
+                setTimeout(() => {
+                    // Target coordinates: move to the center of the discard slot
+                    clone.style.left = `${targetRect.left + targetRect.width / 2 - originalRect.width / 2}px`;
+                    clone.style.top = `${targetRect.top + targetRect.height / 2 - originalRect.height / 2}px`;
+                    clone.style.transform = 'scale(0.5) rotate(720deg)'; // Shrink and spin
+                    clone.style.opacity = '0';
+                }, 10);
+            });
+
+            // 4. Final state update after animation completes
+            setTimeout(() => {
+                clones.forEach(clone => clone.remove());
+                // Now update the game state and render the new UI
+                finishPlayCards(finalState.newHand, finalState.tempDiscardPile, finalState.newDeck, finalState.nextCharge, finalState.message, finalState.targetCard);
+            }, animationDuration + 50); // Give a small buffer
+        };
+        
+        // --- NEW HELPER FUNCTIONS FOR TARGET CARD SELECTION ---
+
+        /**
+         * Checks if a given charge can be neutralized by the current hand (1, 2, or 3 cards).
+         */
+        const isChargeNeutralizable = (targetCharge, hand) => {
+            // 1. Check with 1 card (Wild or a single card that perfectly matches)
+            if (hand.some(card => card.isWild || card.charge + targetCharge === 0)) {
+                return true;
+            }
+
+            // Prepare for multi-card checks (must be the same ion name, and non-wild)
+            const nonWildHand = hand.filter(c => !c.isWild);
+
+            // Group non-wild cards by name
+            const cardsByName = nonWildHand.reduce((acc, card) => {
+                if (!acc[card.name]) acc[card.name] = [];
+                acc[card.name].push(card);
+                return acc;
+            }, {});
+
+            for (const name in cardsByName) {
+                const ionCards = cardsByName[name];
+                // Ion cards are guaranteed to be of the same charge and type
+                const singleCharge = ionCards[0].charge;
+
+                // Check 2 cards
+                if (ionCards.length >= 2 && (singleCharge * 2) + targetCharge === 0) {
+                    return true;
+                }
+
+                // Check 3 cards
+                if (ionCards.length >= 3 && (singleCharge * 3) + targetCharge === 0) {
+                    return true;
+                }
+            }
+            
+            return false;
+        };
+
+        /**
+         * Finds a card in the deck that is NOT a Wild Card and IS neutralizable by the hand.
+         */
+        const findValidTargetCard = (deck, hand) => {
+            let nextCard = null;
+            // Separate wild cards and non-wild cards for targeted drawing
+            let nonWildDeck = deck.filter(c => !c.isWild); 
+            let wildCards = deck.filter(c => c.isWild);
+            let invalidTargets = [];
+            
+            // Shuffle the available deck
+            nonWildDeck.sort(() => Math.random() - 0.5);
+
+            while (nonWildDeck.length > 0) {
+                const drawnCard = nonWildDeck.pop();
+                
+                if (isChargeNeutralizable(drawnCard.charge, hand)) {
+                    nextCard = drawnCard;
+                    break;
+                } else {
+                    invalidTargets.push(drawnCard);
+                }
+            }
+
+            // Recombine the remaining cards for the new deck state
+            const remainingDeck = [...nonWildDeck, ...wildCards, ...invalidTargets].sort(() => Math.random() - 0.5);
+
+            if (nextCard) {
+                return { 
+                    card: nextCard, 
+                    newDeck: remainingDeck, 
+                    message: ` New target set: ${nextCard.symbol}.` 
+                };
+            }
+            
+            // No valid card found
+            return { 
+                card: null, 
+                newDeck: remainingDeck, // New deck is just a shuffled old deck (minus non-wilds)
+                message: ` Deck exhausted of valid targets. Target resets to 0. Finish your hand!` 
+            };
+        };
+
+        // --- Game Logic Functions ---
+
+        /**
+         * Handles card selection/deselection.
+         * @param {string} cardId 
+         */
+        window.handleCardSelect = (cardId) => {
+            if (gameData.isGameOver || setNewChargeTarget !== null) return;
+            const card = gameData.hand.find(c => c.id === cardId);
+            if (!card) return;
+
+            const index = selectedCardIds.indexOf(cardId);
+
+            if (index !== -1) {
+                // Deselect
+                selectedCardIds = selectedCardIds.filter(id => id !== cardId);
+            } else if (selectedCardIds.length < 3) {
+                // Select (max 3 cards)
+                selectedCardIds = [...selectedCardIds, cardId];
+            }
+            renderUI();
+        };
+
+        /**
+         * Handles the Draw Card action (unlimited drawing by recycling discard pile).
+         */
+        window.drawCard = () => {
+            if (gameData.isGameOver || setNewChargeTarget !== null) return;
+            
+            // 1. Check if deck is empty and needs shuffling
+            if (gameData.deck.length === 0) {
+                const targetCard = gameData.discardPile[gameData.discardPile.length - 1];
+                // All cards in discard pile *except* the target card (the top card) are shuffled
+                const cardsToShuffle = gameData.discardPile.slice(0, -1);
+                
+                if (cardsToShuffle.length === 0) {
+                    setUIError("The draw deck is empty and there are no cards to shuffle back.");
+                    return;
+                }
+
+                // Shuffle the cards back into the deck
+                cardsToShuffle.sort(() => Math.random() - 0.5);
+                gameData.deck = cardsToShuffle;
+                gameData.discardPile = targetCard ? [targetCard] : [];
+                gameData.message = "Deck empty! Discard pile shuffled to create a new draw deck.";
+            }
+
+            // 2. Perform the draw
+            const newDeck = [...gameData.deck];
+            const drawnCard = newDeck.pop();
+            const newHand = [...gameData.hand, drawnCard];
+
+            const newState = {
+                ...gameData,
+                deck: newDeck,
+                hand: newHand,
+                message: `You drew ${drawnCard.symbol}. Cards left: ${newHand.length}.`,
+            };
+            
+            gameData = newState;
+            renderUI();
+        };
+
+        /**
+         * Handles the main Play Cards action (initial play or neutralization).
+         */
+        window.playCards = () => {
+            if (selectedCardIds.length === 0 || selectedCardIds.length > 3) {
+                setUIError('You must select 1, 2, or 3 cards to play.');
+                return;
+            }
+
+            const selectedCards = gameData.hand.filter(c => selectedCardIds.includes(c.id));
+            const playedChargeSum = selectedCards.reduce((sum, card) => sum + card.charge, 0);
+
+            const newHand = gameData.hand.filter(c => !selectedCardIds.includes(c.id));
+            const targetCard = gameData.discardPile[gameData.discardPile.length - 1];
+
+            // --- Initial Play (Pile is empty) ---
+            if (!targetCard) {
+                if (selectedCards.length === 1) {
+                    const card = selectedCards[0];
+                    const newState = {
+                        ...gameData,
+                        hand: newHand,
+                        discardPile: [card],
+                        targetCharge: card.charge,
+                        message: `Initial card played: ${card.symbol}. Neutralize this charge!`,
+                    };
+                    gameData = newState;
+                    selectedCardIds = [];
+                    renderUI();
+                    return;
+                } else {
+                    setUIError('You must play exactly one card to start the pile.');
+                    return;
+                }
+            }
+
+            // --- Wild Card Play (Must be a single card) ---
+            const hasWild = selectedCards.length === 1 && selectedCards[0].isWild;
+
+            if (hasWild) {
+                setNewChargeTarget = selectedCards[0]; 
+                setUIError('Wild card played! Choose the next Target Charge below.');
+                renderUI(); 
+                return;
+            }
+
+            // --- Same Type Check for Multiple Cards ---
+            // If playing more than one card, they must all be the same ion type (same name).
+            if (selectedCards.length > 1) {
+                const firstName = selectedCards[0].name;
+                const allSameType = selectedCards.every(card => card.name === firstName);
+
+                if (!allSameType) {
+                    setUIError('Invalid Move. When playing multiple cards, they must all be of the same ion type (same name).');
+                    return;
+                }
+            }
+            // --- END NEW LOGIC ---
+
+            // --- Neutralization Check ---
+            const targetCharge = gameData.targetCharge;
+            const netCharge = targetCharge + playedChargeSum;
+
+            if (netCharge !== 0) {
+                setUIError(`Invalid Move. Net charge (${getChargeSymbol(targetCharge)} + ${getChargeSymbol(playedChargeSum)}) is ${getChargeSymbol(netCharge)}. Must equal 0.`);
+                return;
+            }
+
+            // --- Successful Neutralization (Animation Triggered Here) ---
+            
+            // 1. Prepare next state variables
+            let tempDiscardPile = [...gameData.discardPile, ...selectedCards];
+            let newDeck = [...gameData.deck];
+            let nextChargeCard = null;
+            let nextCharge = 0;
+            let message = `Cards left: ${newHand.length}.`;
+
+            if (newHand.length === 0) {
+                // Player wins
+                message = "You Won! Click 'New Game' to play again.";
+            } else {
+                // Draw a card that is NOT a wild and IS neutralizable by the new hand
+                const targetResult = findValidTargetCard(newDeck, newHand);
+
+                nextChargeCard = targetResult.card;
+                newDeck = targetResult.newDeck; // Update the deck with the shuffled remainder
+                message += targetResult.message;
+
+                if (nextChargeCard) {
+                    tempDiscardPile.push(nextChargeCard);
+                    nextCharge = nextChargeCard.charge;
+                } else {
+                    // Deck exhausted of valid targets, target resets to 0.
+                    nextCharge = 0; 
+                }
+            }
+
+            // 2. Animate the played cards to the discard slot
+            const cardElements = selectedCardIds.map(id => document.querySelector(`[data-card-id="${id}"]`)).filter(el => el !== null);
+
+            // If card elements are found in the hand (i.e., not closed mobile view), run animation
+            if (cardElements.length > 0) {
+                const finalState = { newHand, tempDiscardPile, newDeck, nextCharge, message, targetCard: nextChargeCard };
+                animateCardsToDiscard(cardElements, finalState);
+                return; // Stop the function here, final state update will be in the animation callback
+            }
+
+            // 3. Fallback: If no animation is run (e.g., hidden mobile hand), update state immediately
+            finishPlayCards(newHand, tempDiscardPile, newDeck, nextCharge, message, nextChargeCard);
+        };
+
+        /**
+         * Handles setting a new charge after a Wild Card is played.
+         */
+        window.handleSetNewCharge = (charge) => {
+            const selectedCards = gameData.hand.filter(c => selectedCardIds.includes(c.id));
+            const newHand = gameData.hand.filter(c => !selectedCardIds.includes(c.id));
+            const newDiscardPile = [...gameData.discardPile, ...selectedCards];
+            
+            const newState = {
+                ...gameData,
+                hand: newHand,
+                discardPile: newDiscardPile,
+                targetCharge: charge,
+                message: `Wild Card played! New Target Charge is ${getChargeSymbol(charge)}.`,
+                isGameOver: newHand.length === 0
+            };
+
+            setNewChargeTarget = null;
+            selectedCardIds = [];
+            gameData = newState;
+            renderUI();
+        };
+
+        /**
+         * Resets the game state (Triggers NEW GAME splash).
+         */
+        window.resetGame = () => {
+            const splash = document.getElementById('new-game-splash');
+            const splashText = document.getElementById('splash-text');
+
+            // 1. Show splash screen
+            splash.classList.remove('hidden');
+            // Force reflow/repaint to ensure animation triggers from the start
+            void splashText.offsetWidth; 
+            splashText.classList.add('animate-splash');
+            
+            // 2. Run game reset after animation duration
+            setTimeout(() => {
+                const selectedMode = document.getElementById('mode-select').value;
+                initializeLocalGame(selectedMode);
+                toggleSidebar(false);
+                
+                // 3. Hide splash screen and clean up
+                splash.classList.add('hidden');
+                splashText.classList.remove('animate-splash');
+            }, 1200); // Animation is 1.2s
+        };
+
+        // --- Rendering Functions ---
+
+        /**
+         * Creates the HTML structure for a single card.
+         */
+        const createCardHTML = (card, isSelected, isDiscard = false) => {
+            const chargeSymbol = getChargeSymbol(card.charge);
+            const isNeutral = card.charge === 0 && !card.isWild;
+            const isWild = card.isWild;
+            let bgClass = isWild ? 'card-wild text-white' : card.color;
+            let chargeTextColor = isWild ? 'bg-white text-black' : 'bg-black bg-opacity-30 text-white';
+
+            const selectionClass = isSelected ? 'selected' : '';
+            const marginClass = isDiscard ? '' : 'm-1';
+
+            // Added flex-shrink-0 to prevent cards in the grid layout from shrinking excessively
+            return `
+                <div 
+                    data-card-id="${card.id}" 
+                    onclick="${isDiscard ? '' : `handleCardSelect('${card.id}')`}" 
+                    class="card ${bgClass} ${isNeutral ? 'bg-gray-500' : ''} ${isDiscard ? 'is-discard cursor-default' : ''} 
+                            rounded-xl flex flex-col items-center justify-between p-2 font-bold relative flex-shrink-0
+                            ${selectionClass} ${marginClass}"
+                >
+                    <div class="text-xs self-start uppercase">
+                        ${isWild ? 'Wild' : card.name}
+                    </div>
+                    <div class="text-3xl leading-none pt-1 text-center">
+                        ${card.symbol}
+                    </div>
+                    <div class="text-xs self-end p-1 rounded-lg ${chargeTextColor}">
+                        ${chargeSymbol}
+                    </div>
+                </div>
+            `;
+        };
+
+        /**
+         * Renders the player's hand in the sidebar (Now uses CSS Grid for 2 columns on desktop).
+         */
+        const renderHand = () => {
+            const handContainer = document.getElementById('player-hand');
+            const handTitle = document.getElementById('hand-title');
+            const handCount = gameData.hand.length;
+
+            handTitle.textContent = `Cards (${handCount})`;
+            document.getElementById('mobile-hand-count').textContent = handCount;
+            
+            if (handCount === 0 && gameData.isGameOver) {
+                handContainer.innerHTML = `<p class="text-pink-300 italic text-lg p-4 animate-bounce">You played all your ions!</p>`;
+                return;
+            }
+
+            const handHTML = gameData.hand.map(card => {
+                const isSelected = selectedCardIds.includes(card.id);
+                return createCardHTML(card, isSelected);
+            }).join('');
+            
+            handContainer.innerHTML = handHTML;
+        };
+
+        /**
+         * Renders the Draw Pile and Discard Pile.
+         */
+        const renderPlayArea = () => {
+            const container = document.getElementById('play-area');
+            const targetCard = gameData.discardPile[gameData.discardPile.length - 1];
+            const targetChargeSymbol = targetCard ? getChargeSymbol(gameData.targetCharge) : 'N/A';
+            
+            const discardHTML = targetCard ? createCardHTML(targetCard, false, true) : `
+                <div class="w-20 h-28 md:w-24 md:h-32 rounded-xl border-4 border-dashed border-gray-300 flex items-center justify-center text-gray-400 p-2 text-center">
+                    Empty Pile
+                </div>
+            `;
+            
+            const isDrawDisabled = gameData.isGameOver || setNewChargeTarget !== null; 
+
+            // Determine if the deck is recycled
+            const deckText = gameData.deck.length > 0 
+                ? `${gameData.deck.length} Left` 
+                : (gameData.discardPile.length > 1 ? 'Shuffle Discard' : 'No cards to draw');
+            
+            // MODIFIED: Added transition, hover:scale-105, and active:scale-95 for draw button animation
+            const drawButtonClasses = isDrawDisabled 
+                ? 'opacity-50 cursor-not-allowed' 
+                : 'hover:scale-105 active:scale-95 transition duration-150 transform';
+
+            container.innerHTML = `
+                <div class="flex flex-col items-center">
+                    <button
+                        onclick="drawCard()"
+                        ${isDrawDisabled ? 'disabled' : ''}
+                        class="
+                            w-20 h-28 md:w-24 md:h-32 rounded-xl border-4 border-gray-600 bg-gray-800 text-white font-extrabold flex items-center justify-center shadow-lg relative
+                            ${drawButtonClasses}
+                        "
+                    >
+                        <span class="text-xs absolute top-2">Draw</span>
+                        <span class="text-3xl">➕</span>
+                        <span class="text-xs absolute bottom-2">${deckText}</span>
+                    </button>
+                    <p class="mt-2 text-xs text-gray-500">Draw freely</p>
+                </div>
+
+                <div class="flex flex-col items-center">
+                    <h2 class="text-lg font-bold text-gray-700 mb-2">
+                        ${targetCard ? 'Last Played Card:' : 'Start Game'}
+                    </h2>
+                    <div id="discard-target-slot" class="h-28 md:h-32 relative">
+                        ${discardHTML}
+                    </div>
+                    </div>
+            `;
+        };
+        
+        /**
+         * Renders the action panel including selected cards and the play button.
+         */
+        const renderActionPanel = () => {
+            const container = document.getElementById('action-panel');
+            const selectedCards = gameData.hand.filter(c => selectedCardIds.includes(c.id));
+            const currentHandSum = selectedCards.reduce((sum, card) => sum + card.charge, 0);
+            const targetCard = gameData.discardPile[gameData.discardPile.length - 1];
+            const targetCharge = gameData.targetCharge;
+            const netCharge = targetCharge + currentHandSum;
+            
+            const targetChargeSymbol = getChargeSymbol(targetCharge);
+            const currentHandSumSymbol = getChargeSymbol(currentHandSum);
+            const netChargeSymbol = getChargeSymbol(netCharge);
+            
+            const isInitialPlay = gameData.discardPile.length === 0;
+            const isNeutralization = targetCard && netCharge === 0;
+            const canPlayNeutralization = selectedCards.length > 0 && selectedCards.length <= 3 && isNeutralization;
+            
+            const isWildPlay = selectedCards.length === 1 && selectedCards[0].isWild;
+
+            const buttonDisabled = gameData.isGameOver || setNewChargeTarget !== null || (!isInitialPlay && !canPlayNeutralization && !isWildPlay);
+            const buttonText = isInitialPlay ? 'START GAME (Play 1 Card)' : (isWildPlay ? 'PLAY WILD CARD' : `NEUTRALIZE WITH ${selectedCards.length} CARD(S)`);
+
+            const selectedCardsHTML = selectedCards.length > 0 ? 
+                selectedCards.map(card => createCardHTML(card, true)).join('') : 
+                `<p class="text-gray-500 italic">Select 1-3 cards from your hand.</p>`;
+
+            const wildCharges = [-6, -5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5, 6];
+
+            // MODIFIED: Added transition, hover:scale-105, and active:scale-95 to the wild card charge buttons
+            const wildCardChooser = `
+                <div class="flex flex-col items-center space-y-3">
+                    <p class="text-lg font-semibold text-pink-600">Choose the new Target Charge (Wild Card Bonus):</p>
+                    <div class="flex flex-wrap justify-center gap-2">
+                        ${wildCharges.map(charge => `
+                            <button 
+                                onclick="handleSetNewCharge(${charge})"
+                                class="px-3 py-2 bg-pink-500 text-white font-bold text-sm rounded-lg hover:bg-pink-600 transition duration-150 transform hover:scale-105 active:scale-95 shadow-md"
+                            >
+                                ${getChargeSymbol(charge)}
+                            </button>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+
+            // MODIFIED: Added transition, hover:scale-105, and active:scale-95 to the main play button
+            const actionButtons = setNewChargeTarget ? wildCardChooser : `
+                <button
+                    onclick="playCards()"
+                    ${buttonDisabled ? 'disabled' : ''}
+                    class="
+                        w-full max-w-xs py-3 text-xl font-extrabold rounded-full shadow-lg transition duration-200 transform
+                        ${!buttonDisabled ? 'bg-green-600 hover:bg-green-700 active:scale-95 hover:scale-105 text-white' : 'bg-gray-400 text-gray-600 cursor-not-allowed'}
+                    "
+                >
+                    ${buttonText}
+                </button>
+            `;
+
+            container.innerHTML = `
+                <h3 class="text-lg font-bold text-pink-700 mb-3 text-center">
+                    ${setNewChargeTarget ? 'Select New Charge for Wild Card' : `Selected Compound (${selectedCards.length} cards)`}
+                </h3>
+                
+                <div class="flex justify-center flex-wrap min-h-[120px] mb-4">
+                    ${selectedCardsHTML}
+                </div>
+
+                <div class="flex flex-col items-center space-y-3">
+                    ${targetCard && !setNewChargeTarget ? `
+                        <div class="text-xl font-bold p-2 bg-white rounded-lg shadow-md flex flex-wrap justify-center items-center transition duration-200 text-gray-900">
+                            <span class="mx-1">Target (${targetChargeSymbol})</span>
+                            <span class="mx-1">+</span>
+                            <span class="mx-1">Played (${currentHandSumSymbol})</span>
+                            <span class="mx-1">=</span>
+                            <span class="mx-1">Net:</span>
+                            <span class="${netCharge === 0 ? 'text-green-600 ml-1' : 'text-red-600 ml-1'}">
+                                ${netChargeSymbol}
+                            </span>
+                        </div>
+                    ` : ''}
+
+                    ${actionButtons}
+                </div>
+            `;
+        };
+        
+        /**
+         * Renders the game status/message box (Simplified).
+         */
+        const renderGameStatus = () => {
+            const container = document.getElementById('game-status');
+            
+            const messageContent = gameData.isGameOver ? 
+                `<span class="text-green-600 font-bold">🎉 Game Over! ${gameData.message}</span>` : 
+                `<span class="text-gray-300">${gameData.message}</span>`; 
+
+            // Removed all game status text and buttons, kept only target charge and message
+            container.innerHTML = `
+                <div class="text-center w-full">
+                    <p class="text-lg font-semibold" style="color: var(--soft-accent);">Current Target Charge:</p>
+                    <div id="current-target" class="text-5xl font-extrabold my-2 charge-text transition duration-300">
+                        ${getChargeSymbol(gameData.targetCharge)}
+                    </div>
+                    <p class="text-sm" style="color: var(--border-color);">
+                        ${messageContent}
+                    </p>
+                </div>
+            `;
+        };
+
+        window.clearSelection = () => {
+            selectedCardIds = [];
+            renderUI();
+        };
+
+        /**
+         * Main render function to update the entire UI based on gameData.
+         */
+        const renderUI = () => {
+            if (!gameData) return;
+
+            document.getElementById('error-message').classList.toggle('hidden', !currentErrorMessage);
+            if (currentErrorMessage) {
+                 document.getElementById('error-message').textContent = currentErrorMessage;
+            }
+
+            renderGameStatus();
+            renderPlayArea();
+            renderActionPanel(); 
+            renderHand();
+        };
+
+
+        // --- Initialization ---
+
+        window.onload = () => {
+            // Start with Hard mode selected by default
+            document.getElementById('mode-select').value = 'hard';
+            initializeLocalGame();
+        };
+
+    </script>
+</body>
+</html>
