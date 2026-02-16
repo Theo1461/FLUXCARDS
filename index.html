@@ -27,11 +27,44 @@
             overflow: hidden;
             display: flex;
             flex-direction: column;
-            height: 100%;
-            width: 100%;
+            height: 100vh;
+            width: 100vw;
+            height:100svh;
             transition: background 2s ease-in-out;
         }
+        @keyframes fly-to-target {
+            to { transform: translateY(-150px) scale(0.5); opacity: 0; }
+        }
 
+        @keyframes score-pop {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.3); color: #34c759; }
+            100% { transform: scale(1); }
+        }
+
+        @keyframes field-shock {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); filter: brightness(1.5); }
+            100% { transform: scale(1); }
+        }
+
+        .anim-fly { animation: fly-to-target 0.3s forwards ease-in; }
+        .anim-score { animation: score-pop 0.4s ease-out; }
+        .anim-shock { animation: field-shock 0.3s ease-out; }
+        .particle {
+            position: fixed;
+            pointer-events: none;
+            z-index: 100;
+            width: 8px;
+            height: 8px;
+        }
+        .particle.circle { border-radius: 50%; }
+        .particle.square { border-radius: 2px; }
+
+        @keyframes particle-explode {
+            0% { transform: translate(0, 0) scale(1); opacity: 1; }
+            100% { transform: translate(var(--tx), var(--ty)) rotate(var(--tr)) scale(0); opacity: 0; }
+        }
         .bg-day { background: radial-gradient(circle at top, #1e293b, #020617); }
         .bg-night { background: radial-gradient(circle at bottom, #020617, #000000); }
 
@@ -60,21 +93,18 @@
             justify-content: center;
             transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
             position: relative;
-            border: 2px solid rgba(255,255,255,0.05);
             cursor: pointer;
         }
 
         .card-pill.selected {
             transform: translateY(-28px);
             border: 3px solid #fff;
-            box-shadow: 0 15px 45px rgba(255,255,255,0.4);
             z-index: 10;
         }
 
         .card-pill.merge-selected {
             transform: translateY(-15px);
             border: 3px solid #fff;
-            box-shadow: 0 0 20px rgba(255,255,255,0.5);
         }
 
         @keyframes pulse-border {
@@ -88,13 +118,26 @@
         .c-yellow { background: #ffcc00; color:rgb(255, 238, 204) }
         .c-purple { background: #af52de; color:rgb(240, 207, 255); }
         .c-zinc { background: #d1d1d1; color: rgb(39, 39, 48); }
-
         .scroll-hand {
             display: flex;
             gap: 12px;
             overflow-x: auto;
-            padding: 30px 20px 70px 20px;
+            padding: 20px;
+            padding-bottom: 10px;
             scrollbar-width: none;
+        }
+        @media (max-width: 640px) {
+        .scroll-hand {
+            display: grid;
+            gap: 12px;
+            overflow-x: auto;
+            grid-auto-flow: column;
+            grid-auto-columns: var(--card-width);
+            padding: 100px 20px 10px 20px;
+            scrollbar-width: none;
+            grid-template-rows: repeat(2, 1fr);
+            min-height: calc((var(--card-height) * 2) + 20px);
+        }
         }
         .scroll-hand::-webkit-scrollbar { display: none; }
 
@@ -128,11 +171,6 @@
         @keyframes pulse-red { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
 
         .dock-layer {
-            background: rgba(10, 10, 10, 0.95);
-            backdrop-filter: blur(25px);
-            border-top: 1px solid rgba(255,255,255,0.08);
-            padding-bottom: env(safe-area-inset-bottom, 20px);
-            flex-shrink: 0;
             z-index: 20;
         }
         .custom-scrollbar::-webkit-scrollbar { width: 4px; }
@@ -321,16 +359,16 @@
             if (!list) return;
 
             const allCards = [
-            { icon: '1-9', col: 'zinc', name: 'Standard', desc: 'Classic Color/Number Cards.' },
+            { icon: '1-9', col: 'blue', name: 'Standard', desc: 'Classic Color/Number Cards.' },
             { icon: '⚁', col: 'zinc', name: 'Dice', desc: 'Draw Random Cards/Entropy.' },
             { icon: '⎎', col: 'zinc', name: 'Shift', desc: 'Random Targets Cards.' },
-            { icon: '⧈', col: 'zinc', name: 'Merge', desc: 'Combine 2 Cards.' },
             { icon: '+2', col: 'zinc', name: 'Boost', desc: 'Given 2 Cards/No Entropy.' },
             { icon: '⇄', col: 'purple', name: 'Flip', desc: 'Change All Cards To Its Color.' },
             { icon: '⊘', col: 'purple', name: 'Barrier', desc: 'Block Entropy (2 Rounds).' },
             { icon: '⧉', col: 'purple', name: 'Clone', desc: 'Duplicate Card Of Its Color.' },
             { icon: '1#', col: 'purple', name: 'Add 1', desc: 'Value +1 For Its Color.' },
-            { icon: '2#', col: 'purple', name: 'Add 2', desc: 'Value +2 For Its Color.' }
+            { icon: '2#', col: 'purple', name: 'Add 2', desc: 'Value +2 For Its Color.' },
+            { icon: '⊟', col: 'purple', name: 'Magnet', desc: 'Melts Cards, Makes Specials, Makes #'}
             ];
 
             list.innerHTML = allCards.map(c => `
@@ -345,18 +383,59 @@
         const VALUES = ['1', '2', '3', '4', '5', '6', '7', '8', '9'];
         const NEUTRAL_SPECIALS = [
             { type: 'BOOST', icon: '+2', color: 'zinc', isSpecial: true },
-            { type: 'MERGE', icon: '⧈', color: 'zinc', isSpecial: true },
+            //{ type: 'MERGE', icon: '⧈', color: 'zinc', isSpecial: true },
             { type: 'DICE', icon: '⚁', color: 'zinc', isSpecial: true },
-            { type: 'SHIFT', icon: '⎎', color: 'zinc', isSpecial: true }
+            { type: 'SHIFT', icon: '⎎', color: 'zinc', isSpecial: true },
         ];
         const COLOR_SPECIALS = [
             { type: 'FLIP', icon: '⇄', isSpecial: true },
             { type: 'BARRIER', icon: '⊘', isSpecial: true },
             { type: 'CLONE', icon: '⧉', isSpecial: true },
             { type: 'ADD1', icon: '1#', isSpecial: true },
-            { type: 'ADD2', icon: '2#', isSpecial: true }
+            { type: 'ADD2', icon: '2#', isSpecial: true },
+            { type: 'MAGNET', icon: '⊟', isSpecial: true },
         ];
-
+        function executeMagnetMelt() {
+            const magnetIdxInSelected = state.selected.find(idx => state.hand[idx].type === 'MAGNET');
+            if (magnetIdxInSelected === undefined) return;
+            const magnetColor = state.hand[magnetIdxInSelected].color;
+            const toMelt = state.hand.filter((c, i) => 
+                c.color === magnetColor && 
+                !c.isSpecial && 
+                !state.selected.includes(i)
+            );
+            const meltCount = toMelt.length;
+            if (meltCount === 0) {
+                showToast(`NO ${magnetColor.toUpperCase()} CARDS TO MELT`);
+                return;
+            }
+            let zincYield = 0;
+            if (meltCount >= 1 && meltCount <= 3) zincYield = 1;
+            else if (meltCount >= 4 && meltCount <= 5) zincYield = 2;
+            else if (meltCount >= 6 && meltCount <= 7) zincYield = 3;
+            else if (meltCount >= 8) zincYield = 4;
+            const magnetInHandIdx = state.selected[state.selected.indexOf(magnetIdxInSelected)];
+            state.hand = state.hand.filter((c, i) => 
+                !(c.color === magnetColor && !c.isSpecial) && 
+                i !== magnetInHandIdx
+            );
+            for (let i = 0; i < meltCount; i++) {
+                state.hand.push({
+                    color: magnetColor, 
+                    val: 'BLANK',
+                    isSpecial: true,
+                    type: 'BLANK',
+                    icon: '#'
+                });
+            }
+            for (let i = 0; i < zincYield; i++) {
+                const randomZinc = NEUTRAL_SPECIALS[Math.floor(Math.random() * NEUTRAL_SPECIALS.length)];
+                state.hand.push({ ...randomZinc });
+            }
+            showToast(`EXTRACTED: ${meltCount} # & ${zincYield} SPECIAL`);
+            state.selected = [];
+            render();
+        }
         let state = {
             isOpeningPhase: true, protectedCards: 0,
             highScore: localStorage.getItem('cardflux_highscore') || 0,
@@ -424,19 +503,61 @@
         function generateSmartCard() {
             if (!isSmart || !state.active) return generateTrulyRandom();
             const rand = Math.random();
-            if (rand < 0.26) return { ...NEUTRAL_SPECIALS[Math.floor(Math.random() * NEUTRAL_SPECIALS.length)] };
-            if (rand < 0.36)
-            if (rand < 0.36) {
+            const hand = state.hand;
+            const target = state.selected.length > 0 ? 
+            state.hand[state.selected[state.selected.length - 1]] : 
+            state.active;
+            const isShadowMode = (state.volatility > 70 || state.score > 15000) && Math.random() > 0.5;
+            if (rand < 0.30) {
+                return { ...NEUTRAL_SPECIALS[Math.floor(Math.random() * NEUTRAL_SPECIALS.length)] };
+            } else if (rand < 0.50) {
                 const spec = { ...COLOR_SPECIALS[Math.floor(Math.random() * COLOR_SPECIALS.length)] };
-                spec.color = (state.active.color === 'zinc') ? COLORS[Math.floor(Math.random()*4)] : state.active.color;
+                spec.color = COLORS[Math.floor(Math.random() * COLORS.length)]; 
                 return spec;
-            }
-            const helpType = Math.random() > 0.64 ? 'color' : 'value';
-            return helpType === 'color' ? 
-                { color: (state.active.color === 'zinc') ? COLORS[Math.floor(Math.random()*4)] : state.active.color, val: VALUES[Math.floor(Math.random()*VALUES.length)], isSpecial: false } :
-                { color: COLORS[Math.floor(Math.random()*COLORS.length)], val: state.active.val || VALUES[Math.floor(Math.random()*VALUES.length)], isSpecial: false };
-        }
+            } else {
+                const helpfulRoll = Math.random();
+                if (helpfulRoll < 0.60) {
+                    const valueCounts = {};
+                    hand.forEach(c => { if(!c.isSpecial) valueCounts[c.val] = (valueCounts[c.val] || 0) + 1; });
+                    
+                    let chainVal = (target && !target.isSpecial) ? target.val : null;
+                    if (isShadowMode && chainVal) {
+                        const badValues = VALUES.filter(v => v !== chainVal);
+                        const badColors = COLORS.filter(c => c !== target.color);
+                        return { 
+                            color: badColors[Math.floor(Math.random() * badColors.length)], 
+                            val: badValues[Math.floor(Math.random() * badValues.length)], 
+                            isSpecial: false 
+                        };
+                    }
 
+                    if (chainVal && valueCounts[chainVal] >= 3) {
+                        const mismatchedColor = COLORS.find(col => col !== target.color) || COLORS[0];
+                        const mismatchedValue = VALUES.find(v => v !== chainVal && v !== target.val) || VALUES[0];
+                        return { color: mismatchedColor, val: mismatchedValue, isSpecial: false };
+                    }
+                    if (chainVal) {
+                        const colorsInHand = hand.filter(c => c.val === chainVal).map(c => c.color);
+                        const neededColors = COLORS.filter(col => !colorsInHand.includes(col));
+                        if (neededColors.length > 0) {
+                            return { color: neededColors[Math.floor(Math.random() * neededColors.length)], val: chainVal, isSpecial: false };
+                        }
+                    }
+                    return generateTrulyRandom();
+                } else {
+                    if (isShadowMode) {
+                        const wrongColor = COLORS.find(c => c !== target.color);
+                        const wrongVal = VALUES.find(v => v !== target.val);
+                        return { color: wrongColor, val: wrongVal, isSpecial: false };
+                    }
+                    
+                    const helpType = Math.random() > 0.5 ? 'color' : 'value';
+                    return helpType === 'color' ? 
+                        { color: (target.color === 'zinc') ? COLORS[Math.floor(Math.random()*4)] : target.color, val: VALUES[Math.floor(Math.random()*VALUES.length)], isSpecial: false } :
+                        { color: COLORS[Math.floor(Math.random()*COLORS.length)], val: target.val || VALUES[Math.floor(Math.random()*VALUES.length)], isSpecial: false };
+                }
+            }
+        }
         function toggleSelect(idx) {
             if (state.isGameOver) return;
             if (state.mergeMode) {
@@ -459,13 +580,15 @@
                 render();
                 return;
             }
+
             const selIdx = state.selected.indexOf(idx);
             if (selIdx !== -1) {
                 if (selIdx === state.selected.length - 1) state.selected.pop();
             } else {
                 const prev = state.selected.length > 0 ? state.hand[state.selected[state.selected.length-1]] : state.active;
                 const curr = state.hand[idx];
-                if (curr.color === 'zinc' || prev.color === 'zinc' || curr.color === prev.color || curr.val === prev.val) state.selected.push(idx);
+                const isBlankMatch = (curr.val === 'BLANK' || prev.val === 'BLANK');
+                if (curr.color === 'zinc' || prev.color === 'zinc' || isBlankMatch || curr.color === prev.color || (curr.val === prev.val && !curr.isSpecial && !prev.isSpecial)) state.selected.push(idx);
             }
             render();
         }
@@ -493,106 +616,156 @@
 
         function executeAction() {
             if (state.selected.length === 0) return;
+
             const playedCards = state.selected.map(idx => state.hand[idx]);
             const lastPlayed = playedCards[playedCards.length - 1];
-            const mergeCardIdx = state.selected.findIndex(idx => state.hand[idx].type === 'MERGE');
-            const mergeCard = playedCards.find(c => c.type === 'MERGE');
+            const handEl = document.getElementById('hand');
             
-            if (mergeCard) {
-                state.mergeMode = true;
-                state.hand.splice(state.selected[mergeCardIdx], 1);
-                state.selected = [];
-                showToast("SELECT 2 CARDS TO MERGE #");
-                render();
-                return;
-            }
-            const boostCardIdx = state.selected.findIndex(idx => state.hand[idx].type === 'BOOST');
-            if (boostCardIdx !== -1) {
-                for(let i=0; i<2; i++) if(state.hand.length < 15) state.hand.push(generateTrulyRandom()); 
-                state.hand.splice(state.selected[boostCardIdx], 1);
-                state.selected = [];
-                showToast("+2 CARDS"); 
-                render();
-                return;
-            }
-            const shiftCardIdx = state.selected.findIndex(idx => state.hand[idx].type === 'SHIFT');
-            if (shiftCardIdx !== -1) {
-                state.active = generateTrulyRandom();
-                state.hand.splice(state.selected[shiftCardIdx], 1);
-                state.selected = [];
-    
-                showToast("TARGET SHIFTED");
-                render();
-                return;
-            }
-            let pts = 0;
-            const chainCount = state.selected.length;
-            let remainingHand = state.hand.filter((_, i) => !state.selected.includes(i));
-
-            playedCards.forEach(card => {
-                if (card.isSpecial) {
-
-                    if (card.type === 'DICE') {
-                        const roll = Math.floor(Math.random() * 6) + 1;
-    
-                        if (roll <= 4) {
-        
-                            for(let i = 0; i < roll; i++) {
-                                if(state.hand.length < 15) state.hand.push(generateTrulyRandom());
-                            }
-                            state.volatility += (roll * 6);
-                            showToast(`ROLLED ${roll}: +${roll} CARDS / +${roll * 6}% ENTROPY`);
-                        } else if (roll === 5) {
-                            state.volatility = Math.max(0, state.volatility - 30);
-                            showToast("JACKPOT: -30% ENTROPY");
-                        } else if (roll === 6) {
-                            state.volatility += 30;
-                            showToast("CRITICAL FAIL: +30% ENTROPY");
-                        }
-                    }
-                    if (card.type === 'FLIP') { 
-                        state.hand.forEach(c => { if(!c.isSpecial) c.color = card.color }); 
-                        showToast(`${card.color.toUpperCase()} ALIGNMENT`); 
-                    }
-                    if (card.type === 'BARRIER') {
-                        state.barrierTurns = 2;
-                        showToast("% BLOCKED");
-                    }
-                    if (card.type === 'CLONE') { 
-                        const sameColorUnits = remainingHand.filter(h => h.color === card.color && !h.isSpecial);
-                        if (sameColorUnits.length > 0) {
-                            const target = sameColorUnits[Math.floor(Math.random() * sameColorUnits.length)];
-                            state.hand.push(JSON.parse(JSON.stringify(target))); 
-                            showToast(`${card.color.toUpperCase()} CLONED`); 
-                        } else {
-                            showToast("NO VALID TARGET");
-                        }
-                    }
-                    if (card.type === 'ADD1' || card.type === 'ADD2') {
-                        const amt = card.type === 'ADD1' ? 1 : 2;
-                        state.hand.forEach(c => { 
-                            if (!c.isSpecial && c.color === card.color) { 
-                                let v = Math.min(9, parseInt(c.val) + amt); 
-                                c.val = v.toString(); 
-                            } 
-                        });
-                        showToast(`${card.color.toUpperCase()} CARD VALUE +${amt}`);
-                    }
-                } else {
-                    pts += parseInt(card.val) * 20;
-                }
+            state.selected.forEach(idx => {
+                if(handEl.children[idx]) handEl.children[idx].classList.add('anim-fly');
             });
 
-            const reduction = chainCount * 10;
-            state.volatility = Math.max(0, state.volatility - reduction);
-            state.score += Math.floor(pts * state.multiplier * (1 + (chainCount * 0.4)));
-            state.multiplier = Math.min(25, state.multiplier + (chainCount * 0.15));
-            state.active = JSON.parse(JSON.stringify(lastPlayed));
-            state.hand = state.hand.filter((_, i) => !state.selected.includes(i));
-            state.selected = [];
-            render();
-        }
+            setTimeout(() => {
+                const mergeCardIdx = state.selected.findIndex(idx => state.hand[idx].type === 'MERGE');
+                const mergeCard = playedCards.find(c => c.type === 'MERGE');
+                
+                if (mergeCard) {
+                    state.mergeMode = true;
+                    state.hand.splice(state.selected[mergeCardIdx], 1);
+                    state.selected = [];
+                    showToast("SELECT 2 CARDS TO MERGE #");
+                    render();
+                    return;
+                }
 
+                const boostCardIdx = state.selected.findIndex(idx => state.hand[idx].type === 'BOOST');
+                if (boostCardIdx !== -1) {
+                    for(let i=0; i<2; i++) if(state.hand.length < 15) state.hand.push(generateTrulyRandom()); 
+                    state.hand.splice(state.selected[boostCardIdx], 1);
+                    state.selected = [];
+                    showToast("+2 CARDS"); 
+                    render();
+                    return;
+                }
+
+                const shiftCardIdx = state.selected.findIndex(idx => state.hand[idx].type === 'SHIFT');
+                if (shiftCardIdx !== -1) {
+                    document.getElementById('target-card').classList.add('anim-shock');
+                    state.active = generateTrulyRandom();
+                    state.hand.splice(state.selected[shiftCardIdx], 1);
+                    state.selected = [];
+                    showToast("TARGET SHIFTED");
+                    setTimeout(() => {
+                        document.getElementById('target-card').classList.remove('anim-shock');
+                        render();
+                    }, 300);
+                    return;
+                }
+
+                const diceCardIdx = state.selected.findIndex(idx => state.hand[idx].type === 'DICE');
+                if (diceCardIdx !== -1) {
+                    const roll = Math.floor(Math.random() * 6) + 1;
+                    if (roll <= 4) {
+                        for(let i = 0; i < roll; i++) {
+                            if(state.hand.length < 15) state.hand.push(generateTrulyRandom());
+                        }
+                        state.volatility += (roll * 6);
+                        showToast(`ROLLED ${roll}: +${roll} CARDS`);
+                    } else if (roll === 5) {
+                        state.volatility = Math.max(0, state.volatility - 30);
+                        showToast("JACKPOT: -30% ENTROPY");
+                    } else if (roll === 6) {
+                        state.volatility += 30;
+                        showToast("CRITICAL FAIL: +30% ENTROPY");
+                    }
+                    state.hand.splice(state.selected[diceCardIdx], 1);
+                    state.selected = [];
+                    render();
+                    return;
+                }
+
+                const hasMagnet = state.selected.some(idx => state.hand[idx].type === 'MAGNET');
+                if (hasMagnet) {
+                    executeMagnetMelt(); 
+                    return; 
+                }
+
+                const cupidCardIdx = state.selected.findIndex(idx => state.hand[idx].type === 'HEART');
+                if (cupidCardIdx !== -1) {
+                    const units = state.hand.filter(c => !c.isSpecial);
+                    if (units.length >= 2) {
+                        const targetCard = units[Math.floor(Math.random() * units.length)];
+                        let transformedCount = 0;
+                        state.hand.forEach(c => {
+                            if (!c.isSpecial && c !== targetCard && transformedCount < 2) {
+                                c.color = targetCard.color;
+                                transformedCount++;
+                            }
+                        });
+                        showToast(`CUPID'S ARROW: ${targetCard.color.toUpperCase()} MATCH!`);
+                    } else {
+                        showToast("Need more cards");
+                    }
+                    state.hand.splice(state.selected[cupidCardIdx], 1);
+                    state.selected = [];
+                    render();
+                    return;
+                }
+
+                let pts = 0;
+                const chainCount = state.selected.length;
+                let remainingHand = state.hand.filter((_, i) => !state.selected.includes(i));
+
+                playedCards.forEach(card => {
+                    if (card.isSpecial) {
+                        if (card.type === 'FLIP') { 
+                            state.hand.forEach(c => { if(!c.isSpecial) c.color = card.color }); 
+                            showToast(`${card.color.toUpperCase()} ALIGNMENT`); 
+                        }
+                        if (card.type === 'BARRIER') {
+                            state.barrierTurns = 2;
+                            showToast("% BLOCKED");
+                        }
+                        if (card.type === 'CLONE') { 
+                            const sameColorUnits = remainingHand.filter(h => h.color === card.color && !h.isSpecial);
+                            if (sameColorUnits.length > 0) {
+                                const target = sameColorUnits[Math.floor(Math.random() * sameColorUnits.length)];
+                                state.hand.push(JSON.parse(JSON.stringify(target))); 
+                                showToast(`${card.color.toUpperCase()} CLONED`); 
+                            }
+                        }
+                        if (card.type === 'ADD1' || card.type === 'ADD2') {
+                            const amt = card.type === 'ADD1' ? 1 : 2;
+                            state.hand.forEach(c => { 
+                                if (!c.isSpecial && c.color === card.color) { 
+                                    let v = Math.min(9, parseInt(c.val) + amt); 
+                                    c.val = v.toString(); 
+                                } 
+                            });
+                            showToast(`${card.color.toUpperCase()} CARD VALUE +${amt}`);
+                        }
+                    } else {
+                        pts += parseInt(card.val) * 20;
+                    }
+                });
+
+                if (pts > 0) {
+                    const s = document.getElementById('score');
+                    s.classList.remove('anim-score');
+                    void s.offsetWidth;
+                    s.classList.add('anim-score');
+                }
+
+                const reduction = chainCount * 10;
+                state.volatility = Math.max(0, state.volatility - reduction);
+                state.score += Math.floor(pts * state.multiplier * (1 + (chainCount * 0.4)));
+                state.multiplier = Math.min(25, state.multiplier + (chainCount * 0.15));
+                state.active = JSON.parse(JSON.stringify(lastPlayed));
+                state.hand = state.hand.filter((_, i) => !state.selected.includes(i));
+                state.selected = [];
+                render();
+            }, 250);
+        }
         function drawCard() {
             if (state.isGameOver || state.hand.length >= 15 || state.mergeMode) return;
             state.hand.push(state.next);
@@ -616,8 +789,8 @@
 
         function gameLoop() {
             if (state.isGameOver) return;
-            if (state.hand.length > 9 && state.barrierTurns === 0) {
-                state.volatility += 0.025;
+            if (state.hand.length > 6 && state.barrierTurns === 0) {
+                state.volatility += 0.035;
             }
             if (state.score > state.highScore) {
                 state.highScore = state.score;
