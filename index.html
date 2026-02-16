@@ -796,12 +796,12 @@
                 state.highScore = state.score;
                 localStorage.setItem('cardflux_highscore', state.highScore);
             }
-            if (state.score < 19999) isSmart = 0.87;
-            if (state.score >= 20000 && state.score < 40000) isSmart = 0.65;
-            if (state.score >= 40001 && state.score < 100000) isSmart = 0.39;
-            if (state.score >= 100001 && state.score < 500000) isSmart = 0.15;
-            if (state.score >= 500001 && state.score < 1000000) isSmart = 0.05;
-            if (state.score >= 1000001) isSmart = 0.02;
+            if (state.score < 19999) isSmart = 0.95;
+            if (state.score >= 20000 && state.score < 40000) isSmart = 0.75;
+            if (state.score >= 40001 && state.score < 100000) isSmart = 0.60;
+            if (state.score >= 100001 && state.score < 500000) isSmart = 0.45;
+            if (state.score >= 500001 && state.score < 1000000) isSmart = 0.40;
+            if (state.score >= 1000001) isSmart = 0.30;
 
             const fillEl = document.getElementById('vol-fill');
             if (state.barrierTurns > 0) fillEl.classList.add('barrier-active');
