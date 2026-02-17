@@ -704,7 +704,7 @@
                 playedCards.forEach(card => {
                     if (card.isSpecial) {
                         if (card.type === 'FLIP') { 
-                            state.hand.forEach(c => { if(!c.isSpecial) c.color = card.color }); 
+                            state.hand.forEach(c => { c.color = card.color }); 
                             showToast(`${card.color.toUpperCase()} ALIGNMENT`); 
                         }
                         if (card.type === 'BARRIER') {
@@ -712,7 +712,7 @@
                             showToast("% BLOCKED");
                         }
                         if (card.type === 'CLONE') { 
-                            const sameColorUnits = remainingHand.filter(h => h.color === card.color && !h.isSpecial);
+                            const sameColorUnits = remainingHand.filter(h => h.color === card.color);
                             if (sameColorUnits.length > 0) {
                                 const target = sameColorUnits[Math.floor(Math.random() * sameColorUnits.length)];
                                 state.hand.push(JSON.parse(JSON.stringify(target))); 
