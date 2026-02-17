@@ -702,11 +702,12 @@
                 let remainingHand = state.hand.filter((_, i) => !state.selected.includes(i));
 
                 playedCards.forEach(card => {
-                    if (card.isSpecial) {
-                        if (card.type === 'FLIP') { 
-                            state.hand.forEach(c => { c.color = card.color }); 
-                            showToast(`${card.color.toUpperCase()} ALIGNMENT`); 
-                        }
+                    if (card.type === 'FLIP') {
+    state.hand.forEach(c => { 
+        if(c.color !== 'zinc') c.color = card.color; 
+    }); 
+    showToast(`${card.color.toUpperCase()} ALIGNMENT`); 
+}
                         if (card.type === 'BARRIER') {
                             state.barrierTurns = 2;
                             showToast("% BLOCKED");
