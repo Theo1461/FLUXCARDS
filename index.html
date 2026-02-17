@@ -401,8 +401,10 @@
     
     const magnetCard = state.hand[magnetIdxInSelected];
     const magnetColor = magnetCard.color;
-const toMeltIndices = state.hand.map((c, i) => i)
-    .filter(i => state.hand[i].color === magnetColor && !state.hand[i].isSpecial && !state.selected.includes(i));
+    const toMeltIndices = state.hand.map((c, i) => i)
+        .filter(i => state.hand[i].color === magnetColor && !state.hand[i].isSpecial && !state.selected.includes(i));
+    
+    
     if (toMeltIndices.length === 0) {
         
         showToast("NO CARDS TO MELT: PLAYING NORMALLY");
