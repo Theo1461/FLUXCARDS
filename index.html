@@ -396,46 +396,37 @@
             { type: 'MAGNET', icon: '⊟', isSpecial: true },
         ];
         function executeMagnetMelt() {
-            const magnetIdxInSelected = state.selected.find(idx => state.hand[idx].type === 'MAGNET');
-            if (magnetIdxInSelected === undefined) return;
-            const magnetColor = state.hand[magnetIdxInSelected].color;
-            const toMelt = state.hand.filter((c, i) => 
-                c.color === magnetColor && 
-                !c.isSpecial && 
-                !state.selected.includes(i)
-            );
-            const meltCount = toMelt.length;
-            if (meltCount === 0) {
-                showToast(`NO ${magnetColor.toUpperCase()} CARDS TO MELT`);
-                return;
-            }
-            let zincYield = 0;
-            if (meltCount >= 1 && meltCount <= 3) zincYield = 1;
-            else if (meltCount >= 4 && meltCount <= 5) zincYield = 2;
-            else if (meltCount >= 6 && meltCount <= 7) zincYield = 3;
-            else if (meltCount >= 8) zincYield = 4;
-            const magnetInHandIdx = state.selected[state.selected.indexOf(magnetIdxInSelected)];
-            state.hand = state.hand.filter((c, i) => 
-                !(c.color === magnetColor && !c.isSpecial) && 
-                i !== magnetInHandIdx
-            );
-            for (let i = 0; i < meltCount; i++) {
-                state.hand.push({
-                    color: magnetColor, 
-                    val: 'BLANK',
-                    isSpecial: true,
-                    type: 'BLANK',
-                    icon: '#'
-                });
-            }
-            for (let i = 0; i < zincYield; i++) {
-                const randomZinc = NEUTRAL_SPECIALS[Math.floor(Math.random() * NEUTRAL_SPECIALS.length)];
-                state.hand.push({ ...randomZinc });
-            }
-            showToast(`EXTRACTED: ${meltCount} # & ${zincYield} SPECIAL`);
-            state.selected = [];
-            render();
-        }
+    const magnetIdxInSelected = state.selected.find(idx => state.hand[idx].type === 'MAGNET');
+    if (magnetIdxInSelected === undefined) return;
+    
+    const magnetCard = state.hand[magnetIdxInSelected];
+    const magnetColor = const toMeltIndices = state.hand.map((c, i) => i)
+        .filter(i => state.hand[i].color === magnetColor && !state.hand[i].isSpecial && !state.selected.includes(i));
+
+    if (toMeltIndices.length === 0) {
+        
+        showToast("NO CARDS TO MELT: PLAYING NORMALLY");
+        return false; 
+    }
+
+    const meltCount = toMeltIndices.length;
+    let zincYield = Math.floor(meltCount / 2);
+            const indicesToRemove = [...toMeltIndices, magnetIdxInSelected].sort((a, b) => b - a);
+    indicesToRemove.forEach(idx => state.hand.splice(idx, 1));
+
+   
+    for (let i = 0; i < meltCount; i++) {
+        state.hand.push({ color: magnetColor, val: 'BLANK', isSpecial: true, type: 'BLANK', icon: '#' });
+    }
+    for (let i = 0; i < zincYield; i++) {
+        state.hand.push({ ...NEUTRAL_SPECIALS[Math.floor(Math.random() * NEUTRAL_SPECIALS.length)] });
+    }
+
+    showToast(`MELTED: ${meltCount} # & ${zincYield} SPECIAL`);
+    state.selected = [];
+    render();
+    return true;
+}
         let state = {
             isOpeningPhase: true, protectedCards: 0,
             highScore: localStorage.getItem('cardflux_highscore') || 0,
@@ -588,12 +579,14 @@
                 const prev = state.selected.length > 0 ? state.hand[state.selected[state.selected.length-1]] : state.active;
                 const curr = state.hand[idx];
                 const isBlankMatch = (curr.val === 'BLANK' || prev.val === 'BLANK');
-                if (curr.color === 'zinc' || prev.color === 'zinc' || isBlankMatch || curr.color === prev.color || (curr.val === prev.val && !curr.isSpecial && !prev.isSpecial)) state.selected.push(idx);
+                const iconMatch = (curr.isSpecial && prev.isSpecial && curr.icon === prev.icon);
+                if (curr.color === 'zinc' || iconMatch || prev.color === 'zinc' || isBlankMatch || curr.color === prev.color || (curr.val === prev.val && !curr.isSpecial && !prev.isSpecial)) state.selected.push(idx);
             }
             render();
         }
 
         function cancelSpecialModes() {
+            return;
             state.mergeMode = false;
             state.mergeSelected = [];
             state.selected = []; 
@@ -630,6 +623,7 @@
                 const mergeCard = playedCards.find(c => c.type === 'MERGE');
                 
                 if (mergeCard) {
+                    return;
                     state.mergeMode = true;
                     state.hand.splice(state.selected[mergeCardIdx], 1);
                     state.selected = [];
@@ -686,8 +680,8 @@
 
                 const hasMagnet = state.selected.some(idx => state.hand[idx].type === 'MAGNET');
                 if (hasMagnet) {
-                    executeMagnetMelt(); 
-                    return; 
+                    const success = executeMagnetMelt(); 
+                    if (success) return; 
                 }
 
                 const cupidCardIdx = state.selected.findIndex(idx => state.hand[idx].type === 'HEART');
